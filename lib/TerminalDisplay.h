@@ -40,7 +40,6 @@
 #include "ksession.h"
 #include "ColorScheme.h"
 
-class QDrag;
 class QDragEnterEvent;
 class QDropEvent;
 class QLabel;
@@ -655,6 +654,13 @@ signals:
     void overrideShortcutCheck(QKeyEvent* keyEvent,bool& override);
 
    void isBusySelecting(bool busy);
+   // Terminal selections used to leave Qt Quick through QDrag.  These signals
+   // keep the drag in-scene so the workspace can retain its copy cursor,
+   // cancellation boundary and right-button palette modifier.
+   void selectionDragStarted(const QString& text, const QPointF& position);
+   void selectionDragMoved(const QPointF& position);
+   void selectionDragPaletteRequested();
+   void selectionDragFinished(const QPointF& position);
    void sendStringToEmu(const char*);
 
    // qtermwidget signals
@@ -705,13 +711,11 @@ protected:
     // drag and drop
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
-    void doDrag();
     enum DragState { diNone, diPending, diDragging };
 
     struct _dragInfo {
       DragState       state;
       QPoint          start;
-      QDrag           *dragObject;
     } dragInfo;
 
     // classifies the 'ch' into one of three categories

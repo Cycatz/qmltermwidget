@@ -29,6 +29,7 @@
 // Qt
 #include <QAbstractButton>
 #include <QApplication>
+#include <QMimeData>
 #include <QGuiApplication>
 #include <QQuickWindow>
 #include <QBoxLayout>
@@ -41,7 +42,6 @@
 #include <QLabel>
 #include <QLayout>
 #include <QMessageBox>
-#include <QMimeData>
 #include <QPainter>
 #include <QPixmap>
 #include <QRegularExpression>
@@ -51,7 +51,6 @@
 #include <QGuiApplication>
 #include <QQuickWindow>
 #include <QUrl>
-#include <QDrag>
 
 // KDE
 //#include <kshell.h>
@@ -2242,6 +2241,14 @@ void TerminalDisplay::mousePressEvent(QMouseEvent* ev)
 
   if ( !_screenWindow ) return;
 
+  // During an in-scene selected-text drag the secondary press is a workspace
+  // modifier, not terminal input or a context-menu request.
+  if (dragInfo.state == diDragging && ev->button() == Qt::RightButton)
+  {
+    emit selectionDragPaletteRequested();
+    return;
+  }
+
   int charLine;
   int charColumn;
   getCharacterPosition(ev->pos(),charLine,charColumn);
@@ -2455,18 +2462,24 @@ void TerminalDisplay::mouseMoveEvent(QMouseEvent* ev)
    if ( ev->position().x() > dragInfo.start.x() + distance || ev->position().x() < dragInfo.start.x() - distance ||
         ev->position().y() > dragInfo.start.y() + distance || ev->position().y() < dragInfo.start.y() - distance)
    {
-      // we've left the drag square, we can start a real drag operation now
-      emit isBusySelecting(false); // Ok.. we can breath again.
-
-       _screenWindow->clearSelection();
-      doDrag();
+      // Keep a selected-text drag within the Qt Quick scene. A native QDrag
+      // owns the pointer, which means the workspace cannot maintain its
+      // cursor or receive the right-button palette modifier. Match the other
+      // text Presentations: a drag starts only after it has crossed out of
+      // this painted TerminalDisplay.
+      if (!boundingRect().contains(ev->position())) {
+          dragInfo.state = diDragging;
+          emit isBusySelecting(false);
+          emit selectionDragStarted(
+              _screenWindow->selectedText(_preserveLineBreaks),
+              ev->position());
+      }
     }
     return;
   }
   else if (dragInfo.state == diDragging)
   {
-    // this isn't technically needed because mouseMoveEvent is suppressed during
-    // Qt drag operations, replaced by dragMoveEvent
+    emit selectionDragMoved(ev->position());
     return;
   }
 
@@ -2698,6 +2711,12 @@ void TerminalDisplay::mouseReleaseEvent(QMouseEvent* ev)
   if ( ev->button() == Qt::LeftButton)
   {
     emit isBusySelecting(false);
+    if (dragInfo.state == diDragging)
+    {
+      emit selectionDragFinished(ev->position());
+      dragInfo.state = diNone;
+      return;
+    }
     if(dragInfo.state == diPending)
     {
       // We had a drag event pending but never confirmed.  Kill selection
@@ -2724,7 +2743,6 @@ void TerminalDisplay::mouseReleaseEvent(QMouseEvent* ev)
     }
     dragInfo.state = diNone;
   }
-
 
   if ( !_mouseMarks &&
        ((ev->button() == Qt::RightButton && !(ev->modifiers() & Qt::ShiftModifier))
@@ -3603,17 +3621,6 @@ void TerminalDisplay::dropEvent(QDropEvent* event)
   }
 
   emit sendStringToEmu(dropText.toLocal8Bit().constData());
-}
-
-void TerminalDisplay::doDrag()
-{
-  dragInfo.state = diDragging;
-  dragInfo.dragObject = new QDrag(this);
-  QMimeData *mimeData = new QMimeData;
-  mimeData->setText(QApplication::clipboard()->text(QClipboard::Selection));
-  dragInfo.dragObject->setMimeData(mimeData);
-  dragInfo.dragObject->exec(Qt::CopyAction);
-  // Don't delete the QTextDrag object.  Qt will delete it when it's done with it.
 }
 
 void TerminalDisplay::outputSuspended(bool suspended)
