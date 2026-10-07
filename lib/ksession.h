@@ -45,6 +45,12 @@ class KSession : public QObject
     Q_PROPERTY(bool hasActiveProcess READ hasActiveProcess)
     Q_PROPERTY(QString foregroundProcessName READ foregroundProcessName)
     Q_PROPERTY(QString currentDir READ currentDir)
+    // From the shell's integration marks (OSC 133 and 633;E), which the
+    // Terminal's startup files emit: the command line last started, whether
+    // it is still running, and how the last one finished (-1 before any).
+    Q_PROPERTY(bool commandRunning READ commandRunning NOTIFY commandStateChanged)
+    Q_PROPERTY(QString currentCommand READ currentCommand NOTIFY commandStateChanged)
+    Q_PROPERTY(int lastExitCode READ lastExitCode NOTIFY commandStateChanged)
 
 public:
     KSession(QObject *parent = 0);
@@ -113,6 +119,16 @@ public:
      */
     QString currentDir();
 
+    bool commandRunning() const { return m_commandRunning; }
+    QString currentCommand() const { return m_currentCommand; }
+    int lastExitCode() const { return m_lastExitCode; }
+
+    /**
+     * Kills the foreground process group with SIGKILL, for a command that
+     * ignored an interrupt. Never signals the shell's own process group.
+     */
+    Q_INVOKABLE bool killForegroundCommand();
+
 signals:
     void started();
     void finished();
@@ -126,6 +142,7 @@ signals:
     void changedKeyBindings(QString kb);
 
     void titleChanged();
+    void commandStateChanged();
 
     void historySizeChanged();
 
@@ -165,6 +182,7 @@ public slots:
 
 protected slots:
     void sessionFinished();
+    void shellIntegrationMark(int code, const QString &value);
     void selectionChanged(bool textSelected);
 
 private slots:
@@ -177,6 +195,10 @@ private:
     QString m_shellProgram;
     QStringList m_shellArgs;
     Konsole::Session *m_session;
+    bool m_commandRunning = false;
+    QString m_currentCommand;
+    QString m_pendingCommand;
+    int m_lastExitCode = -1;
 
 };
 

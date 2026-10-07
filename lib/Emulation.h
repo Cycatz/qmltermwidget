@@ -391,6 +391,14 @@ signals:
   void titleChanged(int title,const QString& newTitle);
 
   /**
+   * Emitted at once for a shell integration mark: OSC 133 (A prompt, B
+   * input, C command output starts, D;<exit code> command finished) and
+   * OSC 633;E;<command line>. Unlike titles these are not coalesced, since
+   * a fast command reports start and finish within one batch.
+   */
+  void shellIntegrationMark(int code, const QString& value);
+
+  /**
    * Emitted when the program running in the terminal changes the
    * screen size.
    */

@@ -26,6 +26,8 @@
 
 // Qt
 #include <QApplication>
+#include <csignal>
+#include <unistd.h>
 #include <QGuiApplication>
 #include <QPointer>
 #include <QRegularExpression>
@@ -40,6 +42,75 @@ KSession::KSession(QObject *parent) :
     connect(m_session, SIGNAL(started()), this, SIGNAL(started()));
     connect(m_session, SIGNAL(finished()), this, SLOT(sessionFinished()));
     connect(m_session, SIGNAL(titleChanged()), this, SIGNAL(titleChanged()));
+    connect(m_session->emulation(), &Konsole::Emulation::shellIntegrationMark,
+            this, &KSession::shellIntegrationMark);
+}
+
+// OSC 633;E carries the command line with backslash, semicolon, and control
+// characters written as \\ and \xHH, as VS Code's shell integration does.
+static QString unescapeCommandLine(const QString &text)
+{
+    QString result;
+    result.reserve(text.size());
+    for (int i = 0; i < text.size(); ++i) {
+        if (text[i] == QLatin1Char('\\') && i + 1 < text.size()) {
+            if (text[i + 1] == QLatin1Char('\\')) {
+                result += QLatin1Char('\\');
+                ++i;
+                continue;
+            }
+            if (text[i + 1] == QLatin1Char('x') && i + 3 < text.size()) {
+                bool ok = false;
+                const int code = text.mid(i + 2, 2).toInt(&ok, 16);
+                if (ok) {
+                    result += QChar(code);
+                    i += 3;
+                    continue;
+                }
+            }
+        }
+        result += text[i];
+    }
+    return result;
+}
+
+void KSession::shellIntegrationMark(int code, const QString &value)
+{
+    if (code == 633) {
+        if (value.startsWith(QLatin1String("E;")))
+            m_pendingCommand = unescapeCommandLine(value.mid(2));
+        return;
+    }
+    if (value.startsWith(QLatin1String("C"))) {
+        // A user's own shell integration may mark the same start again.
+        if (m_commandRunning)
+            return;
+        m_currentCommand = m_pendingCommand;
+        m_pendingCommand.clear();
+        m_commandRunning = true;
+        emit commandStateChanged();
+    } else if (value.startsWith(QLatin1String("D"))) {
+        // The first prompt reports D for no command; only a started one ends.
+        if (!m_commandRunning)
+            return;
+        bool ok = false;
+        const int exitCode = value.section(QLatin1Char(';'), 1, 1).toInt(&ok);
+        m_commandRunning = false;
+        m_lastExitCode = ok ? exitCode : 0;
+        emit commandStateChanged();
+    }
+}
+
+bool KSession::killForegroundCommand()
+{
+    const int shell = m_session->processId();
+    const int foreground = m_session->foregroundProcessId();
+    if (shell <= 0 || foreground <= 0 || foreground == shell)
+        return false;
+    const pid_t group = getpgid(foreground);
+    if (group <= 0 || group == getpgid(shell))
+        return false;
+    return ::kill(-group, SIGKILL) == 0;
 }
 
 KSession::~KSession()

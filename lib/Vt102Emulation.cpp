@@ -405,6 +405,11 @@ void Vt102Emulation::processWindowAttributeChange()
   // ignored, only the second char in ST ("\e\\") is appended to tokenBuffer.
   QString newValue = QString::fromWCharArray(tokenBuffer + i + 1, tokenBufferPos-i-2);
 
+  if (attributeToChange == 133 || attributeToChange == 633) {
+    emit shellIntegrationMark(attributeToChange, newValue);
+    return;
+  }
+
   _pendingTitleUpdates[attributeToChange] = newValue;
   _titleUpdateTimer->start(20);
 }

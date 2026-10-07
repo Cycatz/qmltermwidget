@@ -486,6 +486,12 @@ public:
     /** Returns the terminal screen section which is displayed in this widget.  See setScreenWindow() */
     ScreenWindow* screenWindow() const;
 
+    /**
+     * The row of the cursor in the visible screen, from 0, or -1 without a
+     * screen. A compact view uses it to keep the latest output in sight.
+     */
+    Q_INVOKABLE int cursorLine() const;
+
     static bool HAVE_TRANSPARENCY;
 
     void setMotionAfterPasting(MotionAfterPasting action);

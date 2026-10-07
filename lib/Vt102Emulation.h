@@ -136,7 +136,9 @@ private:
   void resetModes();
 
   void resetTokenizer();
-  #define MAX_TOKEN_LENGTH 256 // Max length of tokens (e.g. window title)
+  // Max length of tokens (e.g. window title). Large enough for the command
+  // line a shell reports through OSC 633;E.
+  #define MAX_TOKEN_LENGTH 4096
   void addToCurrentToken(wchar_t cc);
   wchar_t tokenBuffer[MAX_TOKEN_LENGTH]; //FIXME: overflow?
   int tokenBufferPos;

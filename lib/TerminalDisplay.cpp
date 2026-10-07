@@ -138,6 +138,11 @@ static QPoint gs_deadSpot(-1,-1);
 static QPoint gs_futureDeadSpot;
 std::shared_ptr<QTimer> TerminalDisplay::_hideMouseTimer;
 
+int TerminalDisplay::cursorLine() const
+{
+    return _screenWindow ? _screenWindow->cursorPosition().y() : -1;
+}
+
 ScreenWindow* TerminalDisplay::screenWindow() const
 {
     return _screenWindow;
