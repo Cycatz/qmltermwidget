@@ -423,6 +423,14 @@ TerminalDisplay::TerminalDisplay(QQuickItem *parent)
 ,_drawLineChars(true)
 ,_mouseAutohideDelay(-1)
 {
+  // A new texture size gives the item a new, empty texture. Later updates
+  // repaint only the rows that change, so repaint everything once, or the
+  // other rows stay empty and whatever is behind the item shows through
+  // (seen with the GPU scene graph after a zoom changed textureSize).
+  connect(this, &QQuickPaintedItem::textureSizeChanged, this, [this] {
+      QQuickPaintedItem::update();
+  });
+
   // terminal applications are not designed with Right-To-Left in mind,
   // so the layout is forced to Left-To-Right
   //setLayoutDirection(Qt::LeftToRight);
